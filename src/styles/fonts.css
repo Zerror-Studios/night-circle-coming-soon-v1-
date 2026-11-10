@@ -1,0 +1,26 @@
+html,
+body {
+  font-size: 14px;
+  font-weight: 400;
+  font-family: sans-serif;
+  font-display: swap;
+}
+
+@media (min-width: 750px) {
+  html,
+  body {
+    font-size: 0.94vw;
+  }
+}
+@media (min-width: 1440px) {
+  html,
+  body {
+    font-size:1vw;
+  }
+}
+@media (min-width: 2500px) {
+  html,
+  body {
+    font-size:18px;
+  }
+}
