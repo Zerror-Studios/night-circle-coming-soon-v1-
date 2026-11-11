@@ -34,6 +34,9 @@ export default function MarbleReveal({
   flow = 0.35, // how far the trail drifts in the direction you move
   swirl = 0.05, // ink-like curl turbulence while the trail fades
   distortion = 0.02, // liquid drag on the marble along the movement
+  strength = 1, // how strongly the marble shows through the black (0..1)
+  edgeGlow = 1, // brightness of the light edge + glow around the reveal (0 = none)
+  sheen = 0.035, // polished highlight right under the cursor
   trailScale = 0.5, // trail buffer resolution vs canvas
   colors = {},
   grain = {},
@@ -127,6 +130,9 @@ export default function MarbleReveal({
         uniforms: {
           uTrail: { value: null },
           uDistort: { value: distortion },
+          uStrength: { value: strength },
+          uGlow: { value: edgeGlow },
+          uSheen: { value: sheen },
           uGrainAmount: { value: g.amount },
           uGrainSize: { value: g.size },
           uNoiseAmount: { value: g.noise },
@@ -158,6 +164,9 @@ export default function MarbleReveal({
     setRaw(u.uVein.value, palette.vein);
     setRaw(u.uAccent.value, palette.accent);
     u.uDistort.value = distortion;
+    u.uStrength.value = strength;
+    u.uGlow.value = edgeGlow;
+    u.uSheen.value = sheen;
     u.uGrainAmount.value = g.amount;
     u.uGrainSize.value = g.size;
     u.uNoiseAmount.value = g.noise;
@@ -179,6 +188,9 @@ export default function MarbleReveal({
     palette.accent,
     radius,
     distortion,
+    strength,
+    edgeGlow,
+    sheen,
   ]);
 
   // Resize trail buffers with the canvas, and clear them

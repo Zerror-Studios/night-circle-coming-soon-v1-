@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* soft fade-in used by decorative hero elements */
+@keyframes nc-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes nc-fade-in { from { opacity: 1; } to { opacity: 1; } }
+}
+
 * {
   scroll-behavior: smooth;
   user-select: none;

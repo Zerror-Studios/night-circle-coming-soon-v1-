@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cinzel } from "next/font/google";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import { cinzel } from "@/lib/fonts";
 import { buildPhaseFrames, EXTENT } from "./moonTexture";
 
 gsap.registerPlugin(useGSAP);
-
-// Cinzel = free Roman-capitals face, the closest match to Trajan
-const cinzel = Cinzel({ subsets: ["latin"], weight: ["400", "500"], display: "swap" });
 
 // ── Layout in "units": each moon sits in a 100-unit cell, disc radius 46 ──
 const R = 46;

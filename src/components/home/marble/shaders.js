@@ -158,6 +158,9 @@ export const marbleFragment = /* glsl */ `
   uniform vec3  uCloud;
   uniform vec3  uVein;
   uniform vec3  uAccent;
+  uniform float uStrength;  // how strongly the marble shows through (0..1)
+  uniform float uGlow;      // edge light + rim glow multiplier (0 = none)
+  uniform float uSheen;     // polished highlight under the cursor
 
   ${noise}
 
@@ -245,21 +248,21 @@ export const marbleFragment = /* glsl */ `
 
     // Polished sheen right under the cursor
     vec2 dm = (vUv - uMouse) * asp;
-    float sheen = exp(-dot(dm, dm) * 30.0) * 0.035;
+    float sheen = exp(-dot(dm, dm) * 30.0) * uSheen;
     stone += sheen;
 
-    vec3 col = mix(uBg, stone, mask);
+    vec3 col = mix(uBg, stone, mask * uStrength);
 
     // Only light edges where there is actually trail (keeps idle screen pure #111111)
     float present = smoothstep(0.0, 0.12, trail);
 
     // Thin light catching the cut edge
     float edge = smoothstep(0.38, 0.47, m) * (1.0 - smoothstep(0.47, 0.56, m));
-    col += uVein * edge * 0.09 * present;
+    col += uVein * edge * 0.09 * present * uGlow;
 
     // Faint glow just outside the revealed edge
     float rim = smoothstep(0.22, 0.42, m) * (1.0 - mask);
-    col += uVein * rim * 0.03 * present;
+    col += uVein * rim * 0.03 * present * uGlow;
 
     // ── Grain + noise on top of everything ──
     vec2 px = gl_FragCoord.xy / uPixelRatio;          // CSS pixels
