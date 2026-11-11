@@ -16,11 +16,14 @@ export const marbleConfig = {
 
   // ── Reveal (mouse interaction) ──
   reveal: {
+    enabled: false, // marble reveal on mouse move (false = off; three.js isn't loaded at all)
     radius: 0.12, // brush size, fraction of screen height   (0.03 – 0.4)
-    // subtlety
-    strength: 0.7, // how strongly the marble shows through (0 – 1; 1 = full)
-    edgeGlow: 0.5, // light edge + glow around the reveal (0 = none, 1 = full)
+    // subtlety / mood
+    strength: 0.6, // how strongly the marble shows through (0 – 1; 1 = full)
+    feather: 0.2, // edge softness: 0.06 = crisp cut-out, 0.2 = soft misty edge
+    edgeGlow: 0.2, // light edge + glow around the reveal (0 = none, 1 = full)
     sheen: 0.02, // polished highlight under the cursor   (0 – 0.06)
+    halo: 0.04, // soft moonlight glow around the cursor while moving (0 = off)
     growIn: 0.35, // seconds: circle grows in when the mouse starts moving  (0 = instant)
     shrinkOut: 0.5, // seconds: circle shrinks away when the mouse stops   (0 = instant)
     fade: 0.85, // trail persistence; closer to 1 = longer   (0.85 – 0.995)
@@ -29,6 +32,21 @@ export const marbleConfig = {
     flow: 0, // trail drift in the direction you move        (0 – 1.5)
     swirl: 0.05, // ink-like swirl while fading              (0 – 0.3)
     distortion: 0.01, // liquid bend of the marble           (0 – 0.1)
+  },
+
+  // ── Stardust trail behind the mouse ──
+  stardust: {
+    enabled: true,
+    spacing: 16, // px of mouse travel per mote (higher = sparser)
+    maxPerMove: 3, // most motes added per mouse event
+    maxParticles: 140,
+    life: [0.9, 1.8], // seconds each mote lives (min, max)
+    size: [0.5, 1.5], // px radius of a mote (min, max)
+    sparkle: 0.12, // share of motes drawn as 4-point star sparkles
+    spread: 14, // px scatter around the cursor
+    drift: 14, // px/s gentle upward float
+    color: "236, 233, 226", // r, g, b — soft silver
+    opacity: 0.85,
   },
 
   // ── "COMING SOON" + moon phases (centered on top) ──

@@ -37,6 +37,8 @@ export default function MarbleReveal({
   strength = 1, // how strongly the marble shows through the black (0..1)
   edgeGlow = 1, // brightness of the light edge + glow around the reveal (0 = none)
   sheen = 0.035, // polished highlight right under the cursor
+  feather = 0.06, // softness of the reveal edge (0.06 = crisp, ~0.2 = misty)
+  halo = 0, // moonlight glow around the cursor while moving (0 = off, ~0.04 = subtle)
   trailScale = 0.5, // trail buffer resolution vs canvas
   colors = {},
   grain = {},
@@ -133,6 +135,8 @@ export default function MarbleReveal({
           uStrength: { value: strength },
           uGlow: { value: edgeGlow },
           uSheen: { value: sheen },
+          uFeather: { value: feather },
+          uHalo: { value: 0 },
           uGrainAmount: { value: g.amount },
           uGrainSize: { value: g.size },
           uNoiseAmount: { value: g.noise },
@@ -167,6 +171,7 @@ export default function MarbleReveal({
     u.uStrength.value = strength;
     u.uGlow.value = edgeGlow;
     u.uSheen.value = sheen;
+    u.uFeather.value = feather;
     u.uGrainAmount.value = g.amount;
     u.uGrainSize.value = g.size;
     u.uNoiseAmount.value = g.noise;
@@ -191,6 +196,7 @@ export default function MarbleReveal({
     strength,
     edgeGlow,
     sheen,
+    feather,
   ]);
 
   // Resize trail buffers with the canvas, and clear them
@@ -346,6 +352,7 @@ export default function MarbleReveal({
     u.uTrail.value = trail.read.texture;
     u.uTime.value = m.time;
     u.uMouse.value.copy(m.current);
+    u.uHalo.value = halo * m.scale; // glow grows in / fades out with the cursor circle
 
     // Grain frames: stepped at `fps`, advancing always / only while moving / never
     const grainOn = g.amount > 0 || g.noise > 0;

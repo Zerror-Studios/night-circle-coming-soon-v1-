@@ -161,6 +161,8 @@ export const marbleFragment = /* glsl */ `
   uniform float uStrength;  // how strongly the marble shows through (0..1)
   uniform float uGlow;      // edge light + rim glow multiplier (0 = none)
   uniform float uSheen;     // polished highlight under the cursor
+  uniform float uFeather;   // softness of the reveal edge (0.06 = crisp, ~0.2 = misty)
+  uniform float uHalo;      // moonlight glow around the cursor (scaled by mouse activity)
 
   ${noise}
 
@@ -240,7 +242,10 @@ export const marbleFragment = /* glsl */ `
     float n = nBig * 0.75 + nSmall * 0.25;
     float erosion = mix(0.75, 0.35, smoothstep(0.3, 1.0, trail));
     float m = trail + (n - 0.5) * erosion;
-    float mask = smoothstep(0.42, 0.54, m);
+    // Only where there is actually trail (keeps the idle screen pure #111111)
+    float present = smoothstep(0.0, 0.12, trail);
+    // uFeather widens the edge → a soft, misty boundary instead of a crisp cut-out
+    float mask = smoothstep(0.48 - uFeather, 0.48 + uFeather, m) * present;
 
     // ── Liquid drag: marble bends along the movement direction ──
     vec2 disp = vel * uDistort * smoothstep(0.0, 0.8, trail);
@@ -253,8 +258,10 @@ export const marbleFragment = /* glsl */ `
 
     vec3 col = mix(uBg, stone, mask * uStrength);
 
-    // Only light edges where there is actually trail (keeps idle screen pure #111111)
-    float present = smoothstep(0.0, 0.12, trail);
+    // Moonlight halo: a very soft, cool glow around the cursor while it moves
+    // (uHalo is 0 when the mouse is still)
+    vec3 moon = mix(uVein, vec3(0.80, 0.84, 0.92), 0.45);
+    col += moon * exp(-dot(dm, dm) * 11.0) * uHalo;
 
     // Thin light catching the cut edge
     float edge = smoothstep(0.38, 0.47, m) * (1.0 - smoothstep(0.47, 0.56, m));
