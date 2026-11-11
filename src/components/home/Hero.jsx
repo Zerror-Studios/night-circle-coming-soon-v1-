@@ -4,13 +4,14 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { marbleConfig } from "./marble/config";
 import FilmGrain from "./grain/FilmGrain";
+import FluidBackground from "./fluid/FluidBackground";
 import ComingSoon from "./coming-soon/ComingSoon";
 import SignupForm from "./signup/SignupForm";
 import Handwriting from "./handwriting/Handwriting";
 import Stardust from "./stardust/Stardust";
 
-// All settings (grain, reveal, stardust, colors, comingSoon, signup, handwriting, corner) live in ./marble/config.js
-const { grain, reveal, stardust, colors, comingSoon, signup, handwriting, corner } = marbleConfig;
+// All settings (grain, reveal, fluid, stardust, colors, comingSoon, signup, handwriting, corner) live in ./marble/config.js
+const { grain, reveal, fluid, stardust, colors, comingSoon, signup, handwriting, corner } = marbleConfig;
 
 // WebGL marble reveal: only downloaded (with three.js) when `reveal.enabled` is true
 const MarbleBackground = dynamic(() => import("./marble/MarbleBackground"), { ssr: false });
@@ -21,6 +22,15 @@ const Hero = () => {
       className="relative w-screen h-screen overflow-hidden"
       style={{ background: colors.bg }}
     >
+      {/* Fluid smoke that follows the mouse (moves only on mouse movement) */}
+      {fluid.enabled && (
+        <FluidBackground
+          {...fluid}
+          background={colors.bg}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+        />
+      )}
+
       {reveal.enabled ? (
         // marble reveal on mouse move (its shader also draws the grain)
         <MarbleBackground reveal={reveal} colors={colors} grain={grain} />
@@ -34,7 +44,9 @@ const Hero = () => {
       )}
 
       {/* Stardust trail behind the mouse (above the background, below the content) */}
-      <Stardust {...stardust} className="pointer-events-none absolute inset-0 z-[55] h-full w-full" />
+      {stardust.enabled && (
+        <Stardust {...stardust} className="pointer-events-none absolute inset-0 z-[55] h-full w-full" />
+      )}
 
       {/* Floral ornament, top-left corner with a small gap (decorative; ignores the mouse) */}
       <Image

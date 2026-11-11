@@ -34,9 +34,43 @@ export const marbleConfig = {
     distortion: 0.01, // liquid bend of the marble           (0 – 0.1)
   },
 
+  // ── Mouse-move background (GPU fluid simulation) ──
+  // "relief": a carved night garden (roses, lilies, vines, moon, stars) rises out of
+  //           the black wall where the mouse moves, then sinks back flat.
+  //           The carving is drawn in src/components/home/fluid/reliefArt.js
+  // "smoke":  soft silver smoke follows the mouse instead.
+  // Only moves when the mouse moves; settles and stops a few seconds after it goes still.
+  fluid: {
+    enabled: true,
+    look: "relief", // "relief" | "smoke"
+    // reveal (the mouse trail)
+    intensity: 0.35, // how much each move reveals (relief) / smoke it adds (smoke ≈ 0.05)
+    splatRadius: 0.5, // brush size of each stir (percent of screen)
+    splatForce: 900, // how far movement throws the reveal along (fluid push)
+    curl: 18, // swirliness of the reveal's edges
+    densityDissipation: 3, // how fast it sinks back to black (higher = faster; 0.6 = slow linger)
+    velocityDissipation: 0.7, // how fast the flow calms down
+    pressure: 0.8,
+    pressureIterations: 20,
+    simResolution: 128, // fluid grid (lower = cheaper, softer)
+    dyeResolution: 768, // smoke detail
+    settle: 2.5, // seconds after the last move before the simulation stops (after the carving has sunk back)
+    // relief look
+    depth: 40, // how deep the carving looks
+    lightColor: [0.86, 0.84, 0.8], // highlight colour, rgb 0–1 (soft silver)
+    diffuse: 0.75, // brightness of the lit slopes
+    specular: 0.8, // polished glints on the carving
+    shininess: 34, // glint sharpness
+    cavity: 1.2, // darkness in the crevices
+    revealGain: 3, // how quickly the carving fully rises under the mouse
+    // smoke look
+    color: [0.78, 0.76, 0.72], // smoke colour, rgb 0–1 (soft silver)
+    shading: 1, // soft relief on the smoke (0 – 1)
+  },
+
   // ── Stardust trail behind the mouse ──
   stardust: {
-    enabled: true,
+    enabled: false, // replaced by the fluid smoke; set true to bring the stars back
     spacing: 16, // px of mouse travel per mote (higher = sparser)
     maxPerMove: 3, // most motes added per mouse event
     maxParticles: 140,
