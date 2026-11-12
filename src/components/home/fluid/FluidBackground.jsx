@@ -10,6 +10,8 @@ import { buildReliefArt, groupReliefShapes, DESIGN_W, DESIGN_H } from "./reliefA
 // look "relief": a carved night garden rises out of the black wall wherever
 //   the mouse has been, then sinks back. The fluid is the reveal mask, which
 //   gives the reveal its soft, swirling, liquid edges.
+// look "image":  a picture (the `image` URL, e.g. an SVG) shows through the
+//   black wall wherever the mouse has been, with the same liquid edges.
 // look "smoke":  the fluid itself is drawn as silver smoke.
 //
 // Nothing animates on its own: the simulation only runs after mouse movement
@@ -27,7 +29,8 @@ const GROOVE = 0.12; // groove depth per px of blur
 
 export default function FluidBackground({
   background = "#111111",
-  look = "relief", // "relief" | "smoke"
+  look = "relief", // "relief" | "image" | "smoke"
+  image = "/images/bg.svg", // image look: picture revealed under the mouse (cover-fitted)
   intensity = 0.35, // how much each move reveals (relief) / smoke it adds (smoke)
   splatRadius = 0.5, // brush size of each stir (percent of screen)
   splatForce = 900, // how strongly mouse movement pushes the fluid
@@ -46,7 +49,7 @@ export default function FluidBackground({
   specular = 0.8, // polished glints on the carving
   shininess = 34, // glint sharpness
   cavity = 1.2, // darkness in the crevices
-  revealGain = 3, // how quickly the carving fully rises under the mouse
+  revealGain = 3, // how quickly the carving / image fully appears under the mouse
   // smoke look
   color = [0.78, 0.76, 0.72], // smoke colour, rgb 0–1
   shading = 1, // 0..1 soft relief on the smoke
@@ -66,6 +69,8 @@ export default function FluidBackground({
 
     const bg = hexToRgb(background);
     const relief = look === "relief";
+    const picture = look === "image";
+    const reveal = relief || picture; // the dye is a white reveal mask, not coloured smoke
     let disposed = false;
 
     // ── programs ──
@@ -162,7 +167,7 @@ export default function FluidBackground({
     let dye, velocity, divergence, curlT, pressureT;
     const initTargets = () => {
       [dye, velocity, divergence, curlT, pressureT].forEach((t) => t && t.dispose());
-      const s = resFor(simResolution), d = resFor(relief ? Math.min(dyeResolution, 512) : dyeResolution);
+      const s = resFor(simResolution), d = resFor(reveal ? Math.min(dyeResolution, 512) : dyeResolution);
       dye = createDouble(d.w, d.h, gl.RGBA16F, gl.RGBA);
       velocity = createDouble(s.w, s.h, gl.RG16F, gl.RG);
       divergence = createFBO(s.w, s.h, gl.R16F, gl.RED);
@@ -282,6 +287,40 @@ export default function FluidBackground({
       bakeTimer = idle(work);
     };
 
+    // ── image: rasterize the picture once (SVG filters included) into a texture ──
+    let imageTex = null; // { attach, dispose, aspect }
+    const loadImage = () => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = image;
+      img.decode().then(() => {
+        if (disposed) return;
+        const iw = img.naturalWidth || 1440, ih = img.naturalHeight || 900;
+        const A = iw / ih;
+        // sharp at this screen size, capped so big screens don't build huge textures
+        const rw = Math.round(Math.min(2560, Math.max(iw, canvas.width, canvas.height * A)));
+        const rh = Math.round(rw / A);
+        const c = document.createElement("canvas");
+        c.width = rw;
+        c.height = rh;
+        c.getContext("2d").drawImage(img, 0, 0, rw, rh);
+        const tex = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        texParams();
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        c.width = c.height = 0;
+        imageTex = {
+          aspect: A,
+          attach(unit) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); return unit; },
+          dispose() { gl.deleteTexture(tex); },
+        };
+        if (!raf) render();
+      }).catch(() => {}); // image failed to load → the wall just stays plain
+    };
+
     // ── simulation step ──
     const step = (dt) => {
       gl.disable(gl.BLEND);
@@ -324,6 +363,28 @@ export default function FluidBackground({
     };
 
     const render = () => {
+      if (picture) {
+        if (!imageTex) {
+          // picture not loaded yet: plain wall
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+          gl.clearColor(bg[0], bg[1], bg[2], 1);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          return;
+        }
+        // cover-fit the picture to the screen
+        const a = canvas.width / canvas.height, A = imageTex.aspect;
+        const cover = a > A ? [1, A / a, 0, (1 - A / a) / 2] : [a / A, 1, (1 - a / A) / 2, 0];
+        const u = prog("image");
+        gl.uniform2f(u.texelSize, 1 / gl.drawingBufferWidth, 1 / gl.drawingBufferHeight);
+        gl.uniform1i(u.uTexture, dye.read.attach(0));
+        gl.uniform1i(u.uImage, imageTex.attach(1));
+        gl.uniform4f(u.uCover, ...cover);
+        gl.uniform3f(u.uBg, ...bg);
+        gl.uniform1f(u.uGain, revealGain);
+        blit(null);
+        return;
+      }
       if (relief) {
         if (!reliefMap) {
           // carving not baked yet: plain wall
@@ -373,7 +434,7 @@ export default function FluidBackground({
       gl.uniform1f(u.radius, (splatRadius / 100) * (aspect > 1 ? aspect : 1));
       blit(velocity.write); velocity.swap();
 
-      const c = relief ? [1, 1, 1] : color;
+      const c = reveal ? [1, 1, 1] : color;
       gl.uniform1i(u.uTarget, dye.read.attach(0));
       gl.uniform3f(u.color, c[0] * amount, c[1] * amount, c[2] * amount);
       blit(dye.write); dye.swap();
@@ -452,6 +513,7 @@ export default function FluidBackground({
     resize();
     render();
     if (relief) bakeRelief();
+    if (picture) loadImage();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
     window.addEventListener("pointermove", onMove, { passive: true });
@@ -462,10 +524,10 @@ export default function FluidBackground({
       ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
       if (bakeTimer) cancelIdle(bakeTimer);
-      [dye, velocity, divergence, curlT, pressureT, reliefMap].forEach((t) => t && t.dispose());
+      [dye, velocity, divergence, curlT, pressureT, reliefMap, imageTex].forEach((t) => t && t.dispose());
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
-  }, [background, look, intensity, splatRadius, splatForce, curl, densityDissipation, velocityDissipation, pressure, pressureIterations, simResolution, dyeResolution, settle, depth, lightColor, diffuse, specular, shininess, cavity, revealGain, color, shading]);
+  }, [background, look, image, intensity, splatRadius, splatForce, curl, densityDissipation, velocityDissipation, pressure, pressureIterations, simResolution, dyeResolution, settle, depth, lightColor, diffuse, specular, shininess, cavity, revealGain, color, shading]);
 
   return <canvas ref={ref} aria-hidden="true" className={className} style={style} />;
 }

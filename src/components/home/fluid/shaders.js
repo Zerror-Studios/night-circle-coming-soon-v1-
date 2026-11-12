@@ -4,6 +4,7 @@
 //                          → subtract gradient → advect velocity → advect dye
 // Relief bake (once):       blur shape masks → add domes / carve grooves → cavity map
 // Display:                  "relief" = carving rises where the fluid dye is
+//                           "image"  = a picture shows through where the fluid dye is
 //                           "smoke"  = the dye itself drawn as soft smoke
 
 export const VS = `#version 300 es
@@ -163,6 +164,20 @@ void main () {
   vec3 c = uBg + uLight * (diff * uDiffuse + spec * uSpecular);
   c *= 1.0 - clamp(texture(uRelief, ruv).g * uCavity * s, 0.0, 0.85);
   fragColor = vec4(max(c, 0.0), 1.0);
+}`,
+
+  // a picture (e.g. /images/bg.svg) shows through wherever the fluid dye is
+  image: `${HEAD}
+uniform sampler2D uTexture, uImage;
+uniform vec3 uBg;
+uniform vec4 uCover;
+uniform float uGain;
+void main () {
+  float m = 1.0 - exp(-texture(uTexture, vUv).r * uGain);
+  float s = smoothstep(0.04, 0.85, m);
+  if (s <= 0.0) { fragColor = vec4(uBg, 1.0); return; }
+  vec3 img = texture(uImage, vUv * uCover.xy + uCover.zw).rgb;
+  fragColor = vec4(mix(uBg, img, s), 1.0);
 }`,
 
   // the dye as soft smoke, with relief shading for a silky look

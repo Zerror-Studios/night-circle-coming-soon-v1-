@@ -38,11 +38,13 @@ export const marbleConfig = {
   // "relief": a carved night garden (roses, lilies, vines, moon, stars) rises out of
   //           the black wall where the mouse moves, then sinks back flat.
   //           The carving is drawn in src/components/home/fluid/reliefArt.js
+  // "image":  the picture below (`image`) shows through the black wall where the mouse moves.
   // "smoke":  soft silver smoke follows the mouse instead.
   // Only moves when the mouse moves; settles and stops a few seconds after it goes still.
   fluid: {
     enabled: true,
-    look: "relief", // "relief" | "smoke"
+    look: "image", // "relief" | "image" | "smoke"
+    image: "/images/bg.svg", // image look: picture revealed under the mouse (cover-fitted to the screen)
     // reveal (the mouse trail)
     intensity: 0.35, // how much each move reveals (relief) / smoke it adds (smoke ≈ 0.05)
     splatRadius: 0.5, // brush size of each stir (percent of screen)
@@ -62,7 +64,7 @@ export const marbleConfig = {
     specular: 0.8, // polished glints on the carving
     shininess: 34, // glint sharpness
     cavity: 1.2, // darkness in the crevices
-    revealGain: 3, // how quickly the carving fully rises under the mouse
+    revealGain: 3, // how quickly the carving / image fully appears under the mouse
     // smoke look
     color: [0.78, 0.76, 0.72], // smoke colour, rgb 0–1 (soft silver)
     shading: 1, // soft relief on the smoke (0 – 1)
