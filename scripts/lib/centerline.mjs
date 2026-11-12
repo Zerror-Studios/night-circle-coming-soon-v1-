@@ -324,7 +324,15 @@ function toCubicPath(pts, f) {
  * nearest to where the pen currently is; short marks (i-dots…) go last and
  * don't move the pen for the next letter.
  */
-function orderLikeAHand(items, pen, markLen, glyphMidY) {
+function orderLikeAHand(items, pen, markLen, glyphMidY, leftToRight = false) {
+  if (leftToRight) {
+    // one steady left → right pass: every stroke starts at its left end, ordered by that start
+    for (const it of items) if (it.pts[0][0] > it.pts[it.pts.length - 1][0]) it.pts.reverse();
+    const ordered = [...items].sort((a, b) => a.pts[0][0] - b.pts[0][0]);
+    let exit = pen;
+    for (const it of ordered) for (const e of [it.pts[0], it.pts[it.pts.length - 1]]) if (!exit || e[0] > exit[0]) exit = e;
+    return { ordered, penEnd: exit };
+  }
   // "late" strokes: dots, and flat strokes in the upper half (t-crossbars) — added after the body
   const isLate = (it) => {
     if (it.len < markLen) return true;
@@ -366,7 +374,8 @@ function orderLikeAHand(items, pen, markLen, glyphMidY) {
  *             or null for the first letter (then it enters from the left at the baseline)
  * @returns {{ strokes: { d: string, len: number, width: number }[], penEnd: [number, number] }}
  */
-export function centerlineStrokes(commands, bb, { S = 2, minLen = 12, markLen = 80, pen = null } = {}) {
+// leftToRight: ignore hand-like ordering; each stroke runs left → right, ordered by where it starts
+export function centerlineStrokes(commands, bb, { S = 2, minLen = 12, markLen = 80, pen = null, leftToRight = false } = {}) {
   const polys = flattenCommands(commands);
   const { img, W, H, ox, oy } = rasterize(polys, bb, S);
   const dist = distance(img, W, H);
@@ -429,7 +438,7 @@ export function centerlineStrokes(commands, bb, { S = 2, minLen = 12, markLen = 
     // leftover crumbs are already covered by the main strokes (dabs are kept)
     .filter((s) => s.dab || s.len >= minLen);
 
-  const { ordered, penEnd } = orderLikeAHand(items, pen || [bb.x1 - 40, 0], markLen, (bb.y1 + bb.y2) / 2);
+  const { ordered, penEnd } = orderLikeAHand(items, pen || [bb.x1 - 40, 0], markLen, (bb.y1 + bb.y2) / 2, leftToRight);
 
   return {
     strokes: ordered.map((s) => ({ d: toCubicPath(rdp(s.pts, 0.6), f), len: f(s.len), width: f(s.width) })),

@@ -7,11 +7,11 @@ import FilmGrain from "./grain/FilmGrain";
 import FluidBackground from "./fluid/FluidBackground";
 import ComingSoon from "./coming-soon/ComingSoon";
 import SignupForm from "./signup/SignupForm";
-import Handwriting from "./handwriting/Handwriting";
+import LogoDraw from "./logo/LogoDraw";
 import Stardust from "./stardust/Stardust";
 
-// All settings (grain, reveal, fluid, stardust, colors, comingSoon, signup, handwriting, corner) live in ./marble/config.js
-const { grain, reveal, fluid, stardust, colors, comingSoon, signup, handwriting, corner } = marbleConfig;
+// All settings (grain, reveal, fluid, stardust, colors, comingSoon, signup, logo, corner) live in ./marble/config.js
+const { grain, reveal, fluid, stardust, colors, comingSoon, signup, logo, corner } = marbleConfig;
 
 // WebGL marble reveal: only downloaded (with three.js) when `reveal.enabled` is true
 const MarbleBackground = dynamic(() => import("./marble/MarbleBackground"), { ssr: false });
@@ -69,13 +69,15 @@ const Hero = () => {
       {/* Centered on top of the marble; ignores the mouse so the reveal still works under it */}
       <div className="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center">
         <div className="relative">
-          {/* "Night Circle" handwriting, sitting just above the moons */}
-          <div
+          {/* "Night Circle" logo, drawn left to right, sitting just above the moons.
+              It is the page's main heading: the text is there for search engines and screen readers. */}
+          <h1
             className="absolute bottom-full left-1/2 -translate-x-1/2"
-            style={{ marginBottom: handwriting.gap }}
+            style={{ marginBottom: logo.gap }}
           >
-            <Handwriting {...handwriting} />
-          </div>
+            <span className="sr-only">Night Circle</span>
+            <LogoDraw {...logo} decorative />
+          </h1>
           <ComingSoon {...comingSoon} />
         </div>
       </div>

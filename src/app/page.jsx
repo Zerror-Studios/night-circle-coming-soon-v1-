@@ -1,9 +1,16 @@
 import Hero from "@/components/home/Hero";
-import { createPageMetadata } from "@/lib/seo";
+import { createPageMetadata, createSiteJsonLd } from "@/lib/seo";
 
 const HomePage = () => {
   return (
-    <Hero />
+    <>
+      {/* structured data: site name + organisation for search engines */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(createSiteJsonLd()).replace(/</g, "\u003c") }}
+      />
+      <Hero />
+    </>
   );
 };
 
