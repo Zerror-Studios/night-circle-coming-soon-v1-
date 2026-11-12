@@ -6,7 +6,8 @@
 // • Each phase is the same surface lit from a different sun direction using
 //   the Lommel-Seeliger law (why a real full moon looks flat & evenly bright),
 //   with bump-mapped crater relief that shows along the terminator.
-// • Faint earthshine on the night side + soft halo.
+// • No visible night side: the shadow fades softly into the background
+//   (transparent), and a soft halo glows only around the lit edge.
 // ─────────────────────────────────────────────────────────────
 
 // Image covers [-EXTENT, EXTENT] in disc units (disc radius = 1) → room for the halo
@@ -215,9 +216,10 @@ export function renderMoonPhase(N, phaseDeg, lit = "left") {
       const r = Math.hypot(x, y);
 
       if (!S.inside[k]) {
-        // soft halo outside the disc, stronger the more of the moon is lit
+        // soft halo outside the disc, only next to the lit edge (so the dark side has no outline)
         const g = Math.max(0, 1 - (r - 1) / (EXTENT - 1));
-        const ha = Math.pow(g, 3) * 0.16 * litFraction;
+        const limbLit = smooth(-0.15, 0.3, (x * L[0] + y * L[1]) / r + L[2] * 0.9);
+        const ha = Math.pow(g, 3) * 0.16 * litFraction * limbLit;
         d[o] = 230; d[o + 1] = 228; d[o + 2] = 222;
         d[o + 3] = Math.round(255 * ha);
         continue;
@@ -225,47 +227,26 @@ export function renderMoonPhase(N, phaseDeg, lit = "left") {
 
       const mu = S.NZ[k]; // view = +z
       const mu0 = S.BX[k] * L[0] + S.BY[k] * L[1] + S.BZ[k] * L[2];
-      // Lommel-Seeliger (normalised so full moon centre ≈ 1)
+      // Lommel-Seeliger (normalised so full moon ≈ 1 everywhere, 0 at the terminator)
       let I = mu0 > 0 ? (2 * mu0) / (mu0 + mu) : 0;
-      // soften the terminator a touch (atmosphere-free but blurred by optics)
-      I *= smooth(-0.02, 0.06, mu0);
+      // soft terminator (atmosphere-free but blurred by optics)
+      I *= smooth(-0.03, 0.12, mu0);
 
       const alb = S.A[k];
-      const day = I * alb;
-      const earthshine = 0.03 * alb; // faint glow on the night side
+      const v = Math.pow(Math.min(1, I * alb * 0.9), 0.85); // gentle tone curve
 
-      let v = day + earthshine;
-      v = Math.pow(Math.min(1, v * 0.9), 0.85); // gentle tone curve
+      // warm-neutral lunar grey
+      d[o] = Math.round(255 * v * 0.98);
+      d[o + 1] = Math.round(255 * v * 0.965);
+      d[o + 2] = Math.round(255 * v * 0.93);
 
-      // warm-neutral lunar grey, earthshine slightly cooler
-      const cool = earthshine / Math.max(v, 1e-3);
-      d[o] = Math.round(255 * v * (0.98 - 0.05 * cool));
-      d[o + 1] = Math.round(255 * v * (0.965 - 0.02 * cool));
-      d[o + 2] = Math.round(255 * v * (0.93 + 0.05 * cool));
-
-      // anti-aliased disc edge
+      // the night side is see-through: the shadow melts into the background instead of
+      // drawing a dark disc. Anti-aliased disc edge × how lit this point is.
       const edgeA = Math.min(1, (1 - r) * N * 0.5 + 0.5);
-      d[o + 3] = Math.round(255 * edgeA);
+      d[o + 3] = Math.round(255 * edgeA * smooth(0, 0.5, I));
     }
   }
 
   ctx.putImageData(img, 0, 0);
   return canvas;
-}
-
-/**
- * Pre-render a strip of phases from full (0°) to `maxDeg`, for each lit side,
- * so the animation can smoothly wax/wane a moon by cross-fading neighbours.
- * @returns {{ step: number, left: HTMLCanvasElement[], right: HTMLCanvasElement[] }}
- */
-export function buildPhaseFrames(N, maxDeg = 125, step = 5) {
-  const count = Math.ceil(maxDeg / step) + 1;
-  const left = [];
-  const right = [];
-  for (let f = 0; f < count; f++) {
-    const deg = Math.min(maxDeg, f * step);
-    left.push(renderMoonPhase(N, deg, "left"));
-    right.push(f === 0 ? left[0] : renderMoonPhase(N, deg, "right"));
-  }
-  return { step, left, right };
 }

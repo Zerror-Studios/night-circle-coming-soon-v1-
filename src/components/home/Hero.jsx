@@ -1,23 +1,24 @@
 "use client";
 
-import Image from "next/image";
 import dynamic from "next/dynamic";
 import { marbleConfig } from "./marble/config";
 import FilmGrain from "./grain/FilmGrain";
 import FluidBackground from "./fluid/FluidBackground";
 import ComingSoon from "./coming-soon/ComingSoon";
+import MoonPhases from "./coming-soon/MoonPhases";
 import SignupForm from "./signup/SignupForm";
 import LogoDraw from "./logo/LogoDraw";
 import Stardust from "./stardust/Stardust";
 
-// All settings (grain, reveal, fluid, stardust, colors, comingSoon, signup, logo, corner) live in ./marble/config.js
-const { grain, reveal, fluid, stardust, colors, comingSoon, signup, logo, corner } = marbleConfig;
+// All settings (grain, reveal, fluid, stardust, colors, moons, appear, comingSoon, signup, logo) live in ./marble/config.js
+const { grain, reveal, fluid, stardust, colors, moons, appear, comingSoon, signup, logo } = marbleConfig;
 
 // WebGL marble reveal: only downloaded (with three.js) when `reveal.enabled` is true
 const MarbleBackground = dynamic(() => import("./marble/MarbleBackground"), { ssr: false });
 
-// the sign-up form rises in as the logo finishes drawing (timed from the logo's own settings)
-const signupDelay = Math.max(0, logo.delay + logo.duration - signup.revealOverlap);
+// the moons, "COMING SOON" and the sign-up form appear together as the logo finishes drawing
+// (timed from the logo's own settings, so they stay in step if the logo gets faster or slower)
+const appearDelay = Math.max(0, logo.delay + logo.duration - appear.overlap);
 
 const Hero = () => {
   return (
@@ -51,24 +52,6 @@ const Hero = () => {
         <Stardust {...stardust} className="pointer-events-none absolute inset-0 z-[55] h-full w-full" />
       )}
 
-      {/* Floral ornament, top-left corner with a small gap (decorative; ignores the mouse) */}
-      <Image
-        src="/images/corner-flower.png"
-        alt=""
-        aria-hidden="true"
-        width={229}
-        height={272}
-        priority
-        unoptimized // tiny 17 KB PNG: serve it as-is, no image-optimizer round trip
-        className="pointer-events-none absolute z-[60] h-auto select-none"
-        style={{
-          top: corner.gap,
-          left: corner.gap,
-          width: corner.width,
-          animation: `nc-fade-in ${corner.fadeIn}s ease-out ${corner.fadeDelay}s both`,
-        }}
-      />
-
       {/* Centered on top of the marble; ignores the mouse so the reveal still works under it */}
       <div className="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center">
         <div className="relative">
@@ -81,21 +64,24 @@ const Hero = () => {
             <span className="sr-only">Night Circle</span>
             <LogoDraw {...logo} decorative />
           </h1>
-          <ComingSoon {...comingSoon} />
+          {/* moon phases: a still graphic that fades in with "COMING SOON" */}
+          <MoonPhases size={moons.size} delay={appearDelay} duration={appear.duration} />
         </div>
       </div>
 
-      {/* Sign-up form, bottom centre, above everything */}
+      {/* "COMING SOON" + sign-up form, bottom centre, above everything */}
       <div
         className="absolute left-1/2 z-[70] -translate-x-1/2"
         style={{ bottom: signup.bottom }}
       >
         {/* hidden at first, then fades up into focus (keyframes: nc-rise-in in globals.css) */}
         <div
+          className="flex flex-col items-center"
           style={{
-            animation: `nc-rise-in ${signup.revealDuration}s cubic-bezier(0.22, 1, 0.36, 1) ${signupDelay}s both`,
+            animation: `nc-rise-in ${appear.duration}s cubic-bezier(0.22, 1, 0.36, 1) ${appearDelay}s both`,
           }}
         >
+          <ComingSoon {...comingSoon} />
           <SignupForm {...signup} />
         </div>
       </div>

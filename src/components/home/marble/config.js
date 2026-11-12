@@ -85,28 +85,9 @@ export const marbleConfig = {
     opacity: 0.85,
   },
 
-  // ── "COMING SOON" + moon phases (centered on top) ──
-  comingSoon: {
-    text: "COMING SOON",
-    fontSize: "clamp(15px, 1.5vw, 22px)", // text size (any CSS size)
-    moonSize: 34, // px, diameter of one moon
-    delay: 0, // seconds before the moons start
-    // sequence (loops):
-    //   full moon appears → splits into 5, each waning into its phase
-    //   → they glide back, waxing to full, merge into one → moon fades
-    //   → text appears → text hides → repeat
-    moonAppear: 0.6, // seconds for the full moon to appear in the center
-    spread: 1.4, // seconds for the moons to split apart into the 5 phases
-    moonHold: 0.8, // seconds all five stay spread out
-    combine: 1.4, // seconds for the moons to glide back and merge into one
-    oneHold: 0.1, // seconds the single combined moon stays
-    moonHide: 0.6, // seconds for that moon to fade
-    textIn: 1, // seconds for the text to appear
-    textHold: 1.6, // seconds the text stays
-    textOut: 0.7, // seconds for the text to hide
-    pause: 0, // seconds of darkness before the moon comes back
-    loop: true, // false = stop on the text after the first cycle
-    motionBlur: 1, // blur while moving: 0 = off, 1 = normal, 2 = strong
+  // ── Moon phases under the logo (a still graphic: crescent · half · full · half · crescent) ──
+  moons: {
+    size: 34, // px, width of one moon cell (the disc is ~92% of this)
   },
 
   // ── "Night Circle" logo (above the moons): draw animation ──
@@ -123,12 +104,17 @@ export const marbleConfig = {
     softEdge: 0.8, // softness of the moving ink edge (0 = hard edge)
   },
 
-  // ── Floral ornament, top-left corner (public/images/corner-flower.png) ──
-  corner: {
-    width: "clamp(110px, 13vw, 190px)", // size (any CSS width)
-    gap: "clamp(14px, 2vw, 28px)", // space from the top and left edges
-    fadeIn: 1.2, // seconds to fade in on load
-    fadeDelay: 0.2, // seconds before it starts fading in
+  // ── After the logo is drawn: the moons, "COMING SOON" and the sign-up form appear together ──
+  appear: {
+    overlap: 0.4, // seconds they start BEFORE the logo finishes (0 = right after, negative = a pause first)
+    duration: 1.1, // seconds for them to fade / rise in
+  },
+
+  // ── "COMING SOON", just above the sign-up form ──
+  comingSoon: {
+    text: "COMING SOON",
+    fontSize: "clamp(12px, 1.05vw, 16px)", // text size (any CSS size)
+    gap: 20, // px between the text and the form
   },
 
   // ── Sign-up form (bottom centre) ──
@@ -138,11 +124,9 @@ export const marbleConfig = {
     successText: "THANK YOU",
     errorText: "PLEASE TRY AGAIN",
     invalidText: "ENTER A VALID EMAIL",
-    width: 587, // px at full size, same as the design (shrinks to 92vw on small screens)
+    width: 470, // px, size of the box at full size (shrinks to 92vw on small screens)
+    textWidth: 587, // EMAIL / SIGN UP are sized as for a box this wide → the box can shrink, the text stays the same
     bottom: "6vh", // distance from the bottom of the screen
-    // appears with an animation once the logo is drawn (hidden until then)
-    revealOverlap: 0.4, // seconds it starts BEFORE the logo finishes (0 = right after, negative = a pause first)
-    revealDuration: 1.1, // seconds for the form to rise in
     endpoint: "/api/subscribe", // server route that emails the client (src/app/api/subscribe/route.js)
   },
 

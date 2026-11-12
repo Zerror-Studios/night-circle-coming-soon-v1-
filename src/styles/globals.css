@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
-/* soft fade-in used by decorative hero elements */
-@keyframes nc-fade-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  @keyframes nc-fade-in { from { opacity: 1; } to { opacity: 1; } }
-}
-
-/* sign-up form: hidden (and not clickable / focusable) until it rises in under the logo */
+/* "COMING SOON" + sign-up form: hidden (and not clickable / focusable) until they rise in */
 @keyframes nc-rise-in {
   from { opacity: 0; transform: translateY(26px) scale(0.98); filter: blur(8px); visibility: hidden; }
   to { opacity: 1; transform: none; filter: blur(0); visibility: visible; }
 }
 @media (prefers-reduced-motion: reduce) {
   @keyframes nc-rise-in { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* moon phases: fade in softly out of a slight blur (no movement) */
+@keyframes nc-soft-in {
+  from { opacity: 0; transform: scale(0.97); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.65)) blur(6px); }
+  to { opacity: 1; transform: none; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.65)) blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes nc-soft-in { from { opacity: 0; } to { opacity: 1; } }
 }
 
 * {

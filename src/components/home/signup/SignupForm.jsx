@@ -24,7 +24,8 @@ export default function SignupForm({
   errorText = "PLEASE TRY AGAIN",
   invalidText = "ENTER A VALID EMAIL",
   endpoint = "", // POST { email } here (JSON). Empty = not connected yet.
-  width = 587, // px at full size (scales down on small screens)
+  width = 587, // px, box size at full size (scales down on small screens)
+  textWidth = width, // EMAIL / SIGN UP are sized as for a box this wide (lets the box shrink while the text stays put)
 }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | invalid | loading | success | error
@@ -34,9 +35,10 @@ export default function SignupForm({
   const inputId = "nc-signup-email";
   const statusId = "nc-signup-status";
 
-  // whole form scales from one width; font sizes follow it
+  // the frame scales from one width; the text from its own (textWidth), so a smaller box keeps the same text size
   const W = `min(${width}px, 92vw)`;
-  const unit = (n) => `calc(${W} * ${n / FRAME.W})`; // n design-px → real px
+  const TW = `min(${textWidth}px, 92vw)`;
+  const unit = (n) => `calc(${TW} * ${n / FRAME.W})`; // n design-px → real px (text sizes)
 
   const onSubmit = async (e) => {
     e.preventDefault();
