@@ -140,6 +140,9 @@ export const marbleConfig = {
     invalidText: "ENTER A VALID EMAIL",
     width: 587, // px at full size, same as the design (shrinks to 92vw on small screens)
     bottom: "6vh", // distance from the bottom of the screen
+    // appears with an animation once the logo is drawn (hidden until then)
+    revealOverlap: 0.4, // seconds it starts BEFORE the logo finishes (0 = right after, negative = a pause first)
+    revealDuration: 1.1, // seconds for the form to rise in
     endpoint: "/api/subscribe", // server route that emails the client (src/app/api/subscribe/route.js)
   },
 

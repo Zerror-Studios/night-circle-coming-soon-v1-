@@ -16,6 +16,9 @@ const { grain, reveal, fluid, stardust, colors, comingSoon, signup, logo, corner
 // WebGL marble reveal: only downloaded (with three.js) when `reveal.enabled` is true
 const MarbleBackground = dynamic(() => import("./marble/MarbleBackground"), { ssr: false });
 
+// the sign-up form rises in as the logo finishes drawing (timed from the logo's own settings)
+const signupDelay = Math.max(0, logo.delay + logo.duration - signup.revealOverlap);
+
 const Hero = () => {
   return (
     <section
@@ -87,7 +90,14 @@ const Hero = () => {
         className="absolute left-1/2 z-[70] -translate-x-1/2"
         style={{ bottom: signup.bottom }}
       >
-        <SignupForm {...signup} />
+        {/* hidden at first, then fades up into focus (keyframes: nc-rise-in in globals.css) */}
+        <div
+          style={{
+            animation: `nc-rise-in ${signup.revealDuration}s cubic-bezier(0.22, 1, 0.36, 1) ${signupDelay}s both`,
+          }}
+        >
+          <SignupForm {...signup} />
+        </div>
       </div>
     </section>
   );
