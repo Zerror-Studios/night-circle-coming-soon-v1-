@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cinzel, cormorant } from "@/lib/fonts";
 import SignupFrame, { FRAME } from "./SignupFrame";
 
@@ -39,7 +39,21 @@ export default function SignupForm({
   const W = `min(${width}px, 92vw)`;
   const TW = `min(${textWidth}px, 92vw)`;
   const unit = (n) => `calc(${TW} * ${n / FRAME.W})`; // n design-px → real px (text sizes)
-  const labelSize = `max(${unit(14.6)}, 11px)`; // shared by the EMAIL placeholder and SIGN UP
+  const labelSize = `max(${unit(14.6)}, 11px)`; // shared by the typed email, the EMAIL placeholder and SIGN UP
+
+  // iPhone/iPad Safari zooms the whole page when you tap a field whose text is under 16px.
+  // The email text is smaller than that (it matches SIGN UP), so stop that zoom on iOS only.
+  // iOS still lets people pinch-zoom; Android never auto-zooms, so it is left untouched.
+  useEffect(() => {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!ios || !meta || /maximum-scale/.test(meta.content)) return;
+    const original = meta.content;
+    meta.content = `${original}, maximum-scale=1`;
+    return () => {
+      meta.content = original;
+    };
+  }, []);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -161,8 +175,8 @@ export default function SignupForm({
           width: px(FRAME.divider - FRAME.left - 28),
           top: py(FRAME.top + 2),
           height: py(FRAME.bottom - FRAME.top - 4),
-          // ≥16px so iPhone Safari doesn't zoom the page when the field is tapped
-          fontSize: `max(${unit(21)}, 17px)`,
+          // same size as SIGN UP on every screen (iPhone tap-zoom is turned off in the effect above)
+          fontSize: labelSize,
           caretColor: "#e9e7e0",
           border: 0,
           padding: 0,

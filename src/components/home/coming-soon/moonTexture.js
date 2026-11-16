@@ -6,12 +6,13 @@
 // • Each phase is the same surface lit from a different sun direction using
 //   the Lommel-Seeliger law (why a real full moon looks flat & evenly bright),
 //   with bump-mapped crater relief that shows along the terminator.
-// • No visible night side: the shadow fades softly into the background
-//   (transparent), and a soft halo glows only around the lit edge.
+// • The light fades out gradually across the terminator, and the night side is a
+//   faint dark disc with a soft shadow pooled under the moon. Both are see-through
+//   black, so they darken whatever is behind and melt into the background.
 // ─────────────────────────────────────────────────────────────
 
-// Image covers [-EXTENT, EXTENT] in disc units (disc radius = 1) → room for the halo
-export const EXTENT = 1.3;
+// Image covers [-EXTENT, EXTENT] in disc units (disc radius = 1) → room for the halo & shadow
+export const EXTENT = 2;
 
 // ── tiny seeded RNG + 3D value noise ──
 function mulberry32(a) {
@@ -190,9 +191,13 @@ function buildSurface(N) {
  * @param {number} N            texture size in px
  * @param {number} phaseDeg     0 = full, 90 = half, 180 = new
  * @param {"left"|"right"} lit  which side faces the sun
+ * @param {object} [look]
+ * @param {number} [look.shadow=0.65]     darkness of the shadow under the moon (0 = none, 1 = black)
+ * @param {number} [look.softness=0.25]   how wide the light fades into the night side (0 = sharp)
+ * @param {number} [look.brightness=0.66] lit-side brightness (1 = near white)
  * @returns {HTMLCanvasElement}
  */
-export function renderMoonPhase(N, phaseDeg, lit = "left") {
+export function renderMoonPhase(N, phaseDeg, lit = "left", { shadow = 0.65, softness = 0.25, brightness = 0.66 } = {}) {
   const S = buildSurface(N);
   const a = (phaseDeg * Math.PI) / 180;
   const sx = (lit === "left" ? -1 : 1) * Math.sin(a);
@@ -206,6 +211,9 @@ export function renderMoonPhase(N, phaseDeg, lit = "left") {
   const img = ctx.createImageData(N, N);
   const d = img.data;
   const litFraction = (1 + Math.cos(a)) / 2;
+  const pxUnits = (2 * EXTENT) / N; // disc units per pixel
+  // the terminator only exists away from full moon; there the limb must stay bright
+  const soft = Math.max(0.02, softness * Math.sin(a));
 
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
@@ -215,35 +223,45 @@ export function renderMoonPhase(N, phaseDeg, lit = "left") {
       const y = EXTENT - ((j + 0.5) / N) * 2 * EXTENT;
       const r = Math.hypot(x, y);
 
+      // ── shadow (see-through black): a faint dark disc where the night side is,
+      // plus a soft pool below the moon. Nothing above it, so it reads as lit from above.
+      const nightA = 0.25 * (1 - smooth(0.88, 1.12, r));
+      const pool = Math.hypot(x, (y + 0.8) / 0.85); // ellipse centred below the disc
+      const poolA = 1 - smooth(0.3, 1.35, pool);
+      const shadowA = shadow * (1 - (1 - nightA) * (1 - poolA));
+
+      // ── the moon itself: straight colour (cr,cg,cb in 0..1) and its coverage
+      let cr = 0.9, cg = 0.894, cb = 0.871, ma = 0;
       if (!S.inside[k]) {
-        // soft halo outside the disc, only next to the lit edge (so the dark side has no outline)
-        const g = Math.max(0, 1 - (r - 1) / (EXTENT - 1));
+        // faint halo outside the disc, only next to the lit edge (so the dark side has no outline)
+        const g = Math.max(0, 1 - (r - 1) / 0.3);
         const limbLit = smooth(-0.15, 0.3, (x * L[0] + y * L[1]) / r + L[2] * 0.9);
-        const ha = Math.pow(g, 3) * 0.16 * litFraction * limbLit;
-        d[o] = 230; d[o + 1] = 228; d[o + 2] = 222;
-        d[o + 3] = Math.round(255 * ha);
-        continue;
+        ma = Math.pow(g, 3) * 0.12 * litFraction * limbLit;
+      } else {
+        const mu = S.NZ[k]; // view = +z
+        const mu0 = S.BX[k] * L[0] + S.BY[k] * L[1] + S.BZ[k] * L[2];
+        // the terminator is a soft, blurred step reaching a little into the night side,
+        // not a hard line (bumped normal → crater rims still catch light along it)
+        const litAmt = smooth(-1.5 * soft, 0.5 * soft, mu0);
+        // gentle Lommel-Seeliger shading (full moon flat & even, a touch dimmer near the terminator)
+        const ls = mu0 > 0 ? Math.min(1, (2 * mu0) / (mu0 + mu)) : 0;
+        const v = Math.pow(Math.min(1, (0.6 + 0.4 * ls) * S.A[k] * brightness), 0.85); // gentle tone curve
+        // warm-neutral lunar grey
+        cr = v * 0.98; cg = v * 0.965; cb = v * 0.93;
+
+        // the fading light is see-through, so it dissolves into the shadow behind it.
+        // Anti-aliased disc edge × how lit this point is.
+        const edgeA = Math.min(1, (1 - r) / pxUnits + 0.5);
+        ma = edgeA * litAmt;
       }
 
-      const mu = S.NZ[k]; // view = +z
-      const mu0 = S.BX[k] * L[0] + S.BY[k] * L[1] + S.BZ[k] * L[2];
-      // Lommel-Seeliger (normalised so full moon ≈ 1 everywhere, 0 at the terminator)
-      let I = mu0 > 0 ? (2 * mu0) / (mu0 + mu) : 0;
-      // soft terminator (atmosphere-free but blurred by optics)
-      I *= smooth(-0.03, 0.12, mu0);
-
-      const alb = S.A[k];
-      const v = Math.pow(Math.min(1, I * alb * 0.9), 0.85); // gentle tone curve
-
-      // warm-neutral lunar grey
-      d[o] = Math.round(255 * v * 0.98);
-      d[o + 1] = Math.round(255 * v * 0.965);
-      d[o + 2] = Math.round(255 * v * 0.93);
-
-      // the night side is see-through: the shadow melts into the background instead of
-      // drawing a dark disc. Anti-aliased disc edge × how lit this point is.
-      const edgeA = Math.min(1, (1 - r) * N * 0.5 + 0.5);
-      d[o + 3] = Math.round(255 * edgeA * smooth(0, 0.5, I));
+      // moon over shadow (shadow is black, so it only adds coverage)
+      const A = ma + shadowA * (1 - ma);
+      const f = A > 0 ? (255 * ma) / A : 0;
+      d[o] = Math.round(cr * f);
+      d[o + 1] = Math.round(cg * f);
+      d[o + 2] = Math.round(cb * f);
+      d[o + 3] = Math.round(255 * A);
     }
   }
 

@@ -65,7 +65,7 @@ const Hero = () => {
             <LogoDraw {...logo} decorative />
           </h1>
           {/* moon phases: a still graphic that fades in with "COMING SOON" */}
-          <MoonPhases size={moons.size} delay={appearDelay} duration={appear.duration} />
+          <MoonPhases {...moons} delay={appearDelay} duration={appear.duration} />
         </div>
       </div>
 

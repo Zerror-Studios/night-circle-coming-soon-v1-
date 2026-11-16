@@ -86,8 +86,13 @@ export const marbleConfig = {
   },
 
   // ── Moon phases under the logo (a still graphic: crescent · half · full · half · crescent) ──
+  // The light fades softly into each moon's dark side, which melts into the background
+  // with a soft shadow pooled underneath (drawn in src/components/home/coming-soon/moonTexture.js)
   moons: {
     size: 34, // px, width of one moon cell (the disc is ~92% of this)
+    shadow: 0.65, // darkness of the shadow under each moon (0 = none, 1 = black)
+    softness: 0.25, // how gradually the light fades into the dark side (0 = sharp edge, 0.4 = very soft)
+    brightness: 0.66, // lit-side brightness (1 = near white)
   },
 
   // ── "Night Circle" logo (above the moons): draw animation ──
