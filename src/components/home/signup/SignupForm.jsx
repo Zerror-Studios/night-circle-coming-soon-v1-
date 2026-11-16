@@ -39,6 +39,7 @@ export default function SignupForm({
   const W = `min(${width}px, 92vw)`;
   const TW = `min(${textWidth}px, 92vw)`;
   const unit = (n) => `calc(${TW} * ${n / FRAME.W})`; // n design-px → real px (text sizes)
+  const labelSize = `max(${unit(14.6)}, 11px)`; // shared by the EMAIL placeholder and SIGN UP
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -181,7 +182,7 @@ export default function SignupForm({
           width: px(SIGNUP_RIGHT - FRAME.divider - 0.9),
           top: py(FRAME.top + 1.3),
           height: py(FRAME.bottom - FRAME.top - 2.6),
-          fontSize: `max(${unit(14.6)}, 11px)`,
+          fontSize: labelSize,
           border: 0,
           padding: 0,
         }}
@@ -203,7 +204,7 @@ export default function SignupForm({
           font-weight: 500;
           letter-spacing: 0.06em;
           text-transform: uppercase;
-          font-size: max(${unit(17.6)}, 16px);
+          font-size: ${labelSize};
         }
         .nc-signup-input:focus::placeholder { opacity: 0.25; }
         .nc-signup-input:disabled { opacity: 1; -webkit-text-fill-color: #c3c1ba; }
