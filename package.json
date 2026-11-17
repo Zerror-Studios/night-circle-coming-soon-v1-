@@ -11,6 +11,7 @@
     "logo:draw": "node scripts/generate-logo-draw.mjs"
   },
   "dependencies": {
+    "@googleapis/sheets": "^14.0.0",
     "@gsap/react": "^2.1.2",
     "@react-three/fiber": "^9.8.2",
     "@remixicon/react": "^4.6.0",
