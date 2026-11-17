@@ -1,7 +1,6 @@
 import { siteRoutes } from "@/config/site";
 import { absoluteUrl } from "@/utils/url";
 
-// only pages meant for search results (index !== false)
 export default function sitemap() {
   return siteRoutes
     .filter((route) => route.index !== false)
