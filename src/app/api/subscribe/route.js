@@ -54,8 +54,15 @@ let sheetsClient;
 function getSheets() {
   if (sheetsClient) return sheetsClient;
   const clientEmail = env("GOOGLE_CLIENT_EMAIL");
-  // .env stores the key on one line with literal "\n" — turn those back into newlines
-  const privateKey = env("GOOGLE_PRIVATE_KEY").replace(/\\n/g, "\n");
+  // Accept the key however it was pasted: dotenv strips the surrounding quotes, but the
+  // Vercel dashboard keeps them literally (→ ERR_OSSL_UNSUPPORTED). Also turn literal "\n"
+  // back into newlines and drop any Windows "\r".
+  const privateKey = env("GOOGLE_PRIVATE_KEY")
+    .trim()
+    .replace(/^(['"])([\s\S]*)\1$/, "$2")
+    .replace(/\\r/g, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\r/g, "");
   if (!clientEmail || !privateKey || !env("GOOGLE_SHEET_ID")) return null;
   const authClient = new googleAuth.GoogleAuth({
     credentials: { client_email: clientEmail, private_key: privateKey },
