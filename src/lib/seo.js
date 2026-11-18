@@ -2,7 +2,7 @@ import { siteConfig, siteRoutes } from "@/config/site";
 import { absoluteUrl, normalizePath } from "@/utils/url";
 
 // Share image, favicon and app icons come from Next.js file conventions in src/app
-// (opengraph-image.jsx, icon.svg, apple-icon.jsx) — Next adds their tags automatically.
+// (opengraph-image.jsx, icon.png, apple-icon.png) — Next adds their tags automatically.
 // The share image is also referenced explicitly below, because a page that sets its own
 // openGraph/twitter fields would otherwise lose the image from the root.
 const SHARE_IMAGE = { url: "/opengraph-image", width: 1200, height: 630, alt: siteConfig.title, type: "image/png" };
