@@ -1,14 +1,20 @@
-// POST /api/subscribe  { email, website? }
+// POST /api/signup  { email, hp? }
+// The browser only ever talks to this route (same site, same domain) — never to Google.
 // 1. Appends the sign-up as a new row in the Google Sheet (service account).
-// 2. Sends a "new sign-up" notification to the client's inbox via nodemailer.
+//    A sign-up only counts as done once that row is written: if the sheet write fails,
+//    the visitor is told so and can try again.
+// 2. After the row is saved, sends a "new sign-up" notification email (does not hold up the reply).
 // Runs on the server only — credentials never reach the browser.
+//
+// Replies: { ok: true }  or  { ok: false, error: "invalid_email" | "rate_limited" | "save_failed" | ... }
 
 import nodemailer from "nodemailer";
 import { sheets as googleSheets, auth as googleAuth } from "@googleapis/sheets";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 // Prefer server-only names; fall back to the current NEXT_PUBLIC_* names in .env.
 // (Recommended: rename them without NEXT_PUBLIC_ — that prefix is meant for values
@@ -16,12 +22,16 @@ export const dynamic = "force-dynamic";
 const env = (name) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`] || "";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const SOURCE = "Coming-soon page";
+
+const noStore = { "Cache-Control": "no-store" };
+const reply = (body, status = 200) => NextResponse.json(body, { status, headers: noStore });
 
 // ── simple in-memory rate limit (per server instance) ──
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_PER_IP = 5;
 const hits = new Map(); // ip -> timestamps
-const recentEmails = new Map(); // email -> timestamp (ignore duplicates within the window)
+const savedEmails = new Map(); // email -> time its row was written (skip duplicate rows within the window)
 
 function limited(ip) {
   const now = Date.now();
@@ -72,17 +82,36 @@ function getSheets() {
   return sheetsClient;
 }
 
-async function appendToSheet(email, isoTime) {
+const TRANSIENT_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const TRANSIENT_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "ECONNABORTED", "EAI_AGAIN", "ENOTFOUND", "EPIPE"]);
+
+async function appendToSheet(row) {
   const client = getSheets();
-  if (!client) throw new Error("Google Sheets is not configured");
+  if (!client) {
+    const e = new Error("Google Sheets is not configured (GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY / GOOGLE_SHEET_ID)");
+    e.code = "NOT_CONFIGURED";
+    throw e;
+  }
   const tab = env("GOOGLE_SHEET_TAB");
-  await client.spreadsheets.values.append({
+  const request = {
     spreadsheetId: env("GOOGLE_SHEET_ID"),
     range: tab ? `'${tab.replace(/'/g, "''")}'!A:C` : "A:C",
     valueInputOption: "RAW", // RAW so an email like "=cmd..." is never run as a formula
     insertDataOption: "INSERT_ROWS",
-    requestBody: { values: [[isoTime, email, "Coming-soon page"]] },
-  });
+    requestBody: { values: [row] },
+  };
+  // one retry for a brief Google hiccup (rate limit, 5xx, dropped connection)
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await client.spreadsheets.values.append(request, { timeout: 8000 });
+      return;
+    } catch (e) {
+      const status = Number(e?.status || e?.response?.status || e?.code) || 0;
+      const transient = TRANSIENT_STATUS.has(status) || TRANSIENT_CODES.has(e?.code);
+      if (attempt >= 2 || !transient) throw e;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+  }
 }
 
 const escapeHtml = (s) =>
@@ -93,51 +122,60 @@ export async function POST(req) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
+    return reply({ ok: false, error: "bad_request" }, 400);
   }
-
-  // honeypot: real visitors never fill this hidden field
-  if (body?.website) return NextResponse.json({ ok: true });
 
   const email = String(body?.email || "").trim().toLowerCase();
   if (email.length > 254 || !EMAIL_RE.test(email)) {
-    return NextResponse.json({ ok: false, error: "Invalid email" }, { status: 400 });
+    return reply({ ok: false, error: "invalid_email" }, 400);
   }
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "local";
   if (limited(ip)) {
-    return NextResponse.json({ ok: false, error: "Too many requests" }, { status: 429 });
+    return reply({ ok: false, error: "rate_limited" }, 429);
   }
 
-  // same address submitted again shortly after: accept, but don't email twice
-  const seen = recentEmails.get(email);
-  if (seen && Date.now() - seen < WINDOW_MS) return NextResponse.json({ ok: true });
+  // Same address already saved a moment ago (double tap, retry after a slow reply): it is
+  // in the sheet, so say so instead of adding the same row twice.
+  const saved = savedEmails.get(email);
+  if (saved && Date.now() - saved < WINDOW_MS) return reply({ ok: true });
+
+  // Honeypot: a hidden field real visitors never see. Bots tend to fill it — but so can some
+  // phone/browser autofill. So a filled honeypot no longer silently drops the sign-up (that
+  // lost real people before): the row is still saved, just marked so it can be checked.
+  const suspicious = Boolean(body?.hp || body?.website);
 
   const now = new Date();
   const when = now.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
-  const safe = escapeHtml(email);
 
-  // Run both in parallel; the sign-up counts as saved if either one succeeds.
-  const [sheetResult, mailResult] = await Promise.allSettled([
-    appendToSheet(email, `${when} (UTC)`),
-    sendNotification(email, when, safe),
-  ]);
-
-  if (sheetResult.status === "rejected") {
-    const e = sheetResult.reason;
+  try {
+    await appendToSheet([`${when} (UTC)`, email, suspicious ? `${SOURCE} (check: hidden field filled)` : SOURCE]);
+  } catch (e) {
     // log the reason, never the credentials
-    console.error("[subscribe] Sheets append failed:", e?.code || "", e?.message);
-  }
-  if (mailResult.status === "rejected") {
-    const e = mailResult.reason;
-    console.error("[subscribe] sendMail failed:", e?.code || "", e?.responseCode || "", e?.message);
+    console.error(
+      "[signup] Sheets append failed:",
+      e?.code || "",
+      e?.status || e?.response?.status || "",
+      e?.message
+    );
+    return reply({ ok: false, error: "save_failed" }, 502);
   }
 
-  if (sheetResult.status === "fulfilled" || mailResult.status === "fulfilled") {
-    recentEmails.set(email, Date.now());
-    return NextResponse.json({ ok: true });
+  savedEmails.set(email, Date.now());
+
+  // The row is saved, so the visitor is signed up. The notification email goes out after
+  // the reply (Vercel keeps the function alive for it); if it fails, the sign-up still stands.
+  if (!suspicious) {
+    after(async () => {
+      try {
+        await sendNotification(email, when, escapeHtml(email));
+      } catch (e) {
+        console.error("[signup] sendMail failed:", e?.code || "", e?.responseCode || "", e?.message);
+      }
+    });
   }
-  return NextResponse.json({ ok: false, error: "Could not save" }, { status: 502 });
+
+  return reply({ ok: true });
 }
 
 async function sendNotification(email, when, safe) {
@@ -163,5 +201,5 @@ async function sendNotification(email, when, safe) {
 }
 
 export function GET() {
-  return NextResponse.json({ ok: false, error: "Method not allowed" }, { status: 405 });
+  return reply({ ok: false, error: "method_not_allowed" }, 405);
 }

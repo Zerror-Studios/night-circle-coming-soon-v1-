@@ -126,13 +126,14 @@ export const marbleConfig = {
   signup: {
     placeholder: "EMAIL",
     button: "SIGN UP",
-    successText: "THANK YOU",
-    errorText: "PLEASE TRY AGAIN",
+    // after sending, these replace the COMING SOON line above the form:
+    successText: "SEE YOU SOON", // the sheet has the row → the form fades away
+    errorText: "TRY AGAIN", // NOT saved → the form stays (address still in it) to send again
     invalidText: "ENTER A VALID EMAIL",
     width: 470, // px, size of the box at full size (shrinks to 92vw on small screens)
     textWidth: 587, // EMAIL / SIGN UP are sized as for a box this wide → the box can shrink, the text stays the same
     bottom: "6vh", // distance from the bottom of the screen
-    endpoint: "/api/subscribe", // server route that emails the client (src/app/api/subscribe/route.js)
+    endpoint: "/api/signup", // server route that writes the row to the Google Sheet, then emails the client (src/app/api/signup/route.js)
   },
 
   // ── Colors ──

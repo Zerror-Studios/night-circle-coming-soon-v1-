@@ -6,6 +6,10 @@ import SignupFrame, { FRAME } from "./SignupFrame";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+// Give up waiting for the server after this long and say so (slow mobile networks).
+// The server may retry the sheet once, so leave it room for that.
+const TIMEOUT_MS = 25000;
+
 // Right edge of the SIGN UP section: just inside the right-hand scroll column
 const SIGNUP_RIGHT = 559;
 
@@ -13,22 +17,33 @@ const SIGNUP_RIGHT = 559;
 const HOVER_BG = "#666666";
 const HOVER_TEXT = "#ffffff";
 
+// warm tint used for every problem (invalid address, failed sign-up)
+const WARN = "#c9a68c";
+
 // percentage helpers on the 587 × 95 design grid
 const px = (v) => `${(v / FRAME.W) * 100}%`;
 const py = (v) => `${(v / FRAME.H) * 100}%`;
 
+// what screen readers hear (the visible words are the line above the form, set in Hero)
+const SR_TEXT = {
+  success: "You are signed up. See you soon.",
+  failed: "Sign-up failed. You are not signed up yet. Please try again.",
+  offline: "No internet connection. You are not signed up yet. Please try again.",
+  busy: "Too many attempts. Please wait a few minutes, then try again.",
+};
+
 export default function SignupForm({
   placeholder = "EMAIL",
   button = "SIGN UP",
-  successText = "THANK YOU",
-  errorText = "PLEASE TRY AGAIN",
   invalidText = "ENTER A VALID EMAIL",
-  endpoint = "", // POST { email } here (JSON). Empty = not connected yet.
+  endpoint = "", // POST { email } here (JSON); success only when it answers { ok: true }
+  onOutcome, // called with "success" | "error" after each attempt (Hero swaps COMING SOON for it)
   width = 587, // px, box size at full size (scales down on small screens)
   textWidth = width, // EMAIL / SIGN UP are sized as for a box this wide (lets the box shrink while the text stays put)
 }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | invalid | loading | success | error
+  const [errorKind, setErrorKind] = useState("failed"); // failed | offline | busy
   const formRef = useRef(null);
   // fixed ids: useId() differed between server and client here (the R3F <Canvas>
   // renders a different tree on each side), which caused a hydration mismatch
@@ -55,47 +70,93 @@ export default function SignupForm({
     };
   }, []);
 
+  const shake = () =>
+    // small horizontal shake so the error is visible even with text in the field
+    formRef.current?.animate(
+      [
+        { transform: "translateX(0)" },
+        { transform: "translateX(-5px)" },
+        { transform: "translateX(4px)" },
+        { transform: "translateX(-2px)" },
+        { transform: "translateX(0)" },
+      ],
+      { duration: 380, easing: "ease-out" }
+    );
+
+  // not saved: the form stays (address still in it) so they can send it again
+  const fail = (kind) => {
+    setErrorKind(kind);
+    setStatus("error");
+    shake();
+    onOutcome?.("error");
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     if (status === "loading" || status === "success") return;
     const value = email.trim();
     if (!EMAIL_RE.test(value)) {
       setStatus("invalid");
-      // small horizontal shake so the error is visible even with text in the field
-      formRef.current?.animate(
-        [
-          { transform: "translateX(0)" },
-          { transform: "translateX(-5px)" },
-          { transform: "translateX(4px)" },
-          { transform: "translateX(-2px)" },
-          { transform: "translateX(0)" },
-        ],
-        { duration: 380, easing: "ease-out" }
-      );
+      shake();
       return;
     }
+    if (!endpoint) {
+      console.error("[SignupForm] No `endpoint` set in marble/config.js — the sign-up cannot be saved.");
+      fail("failed");
+      return;
+    }
+    if (navigator.onLine === false) {
+      fail("offline");
+      return;
+    }
+
     setStatus("loading");
+    const hp = formRef.current?.elements?.nc_hp?.value || ""; // honeypot (bots fill it)
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      if (endpoint) {
-        const website = formRef.current?.elements?.website?.value || ""; // honeypot (bots fill it)
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: value, website }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      } else if (process.env.NODE_ENV !== "production") {
-        console.warn("[SignupForm] No `endpoint` set in marble/config.js — email was not sent anywhere.");
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: value, hp }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        // not JSON (e.g. a Wi-Fi login page or a proxy error page) → not saved
       }
-      setStatus("success");
-      setEmail("");
+      // only a real "saved" answer from our own route counts as signed up
+      if (res.ok && data?.ok === true) {
+        setStatus("success"); // the form fades away
+        onOutcome?.("success");
+        return;
+      }
+      if (data?.error === "invalid_email") {
+        setStatus("invalid");
+        shake();
+        return;
+      }
+      fail(res.status === 429 ? "busy" : "failed");
     } catch {
-      setStatus("error");
+      // network error or timeout: the request may never have reached the server
+      fail(navigator.onLine === false ? "offline" : "failed");
+    } finally {
+      clearTimeout(timer);
     }
   };
 
-  const message =
-    status === "success" ? successText : status === "invalid" ? invalidText : status === "error" ? errorText : "";
+  const srMessage =
+    status === "success"
+      ? SR_TEXT.success
+      : status === "error"
+        ? SR_TEXT[errorKind]
+        : status === "invalid"
+          ? invalidText
+          : "";
+  const done = status === "success";
 
   const textStyle = {
     fontWeight: 500, // Cinzel Medium ≈ Trajan's stroke weight
@@ -106,106 +167,122 @@ export default function SignupForm({
   };
 
   return (
-    <form
-      ref={formRef}
-      onSubmit={onSubmit}
-      noValidate
+    // fixed footprint (same size as the framed box): when the form fades away after a
+    // sign-up, the line above it ("SEE YOU SOON") stays exactly where COMING SOON was
+    <div
       className={`${cinzel.className} relative select-none`}
       style={{ width: W, aspectRatio: `${FRAME.W} / ${FRAME.H}` }}
-      aria-describedby={statusId}
     >
-      {/* Gray hover fill for the SIGN UP section — sits UNDER the frame so the
-          bars, divider and corner ornaments stay drawn on top of it */}
-      <div
-        aria-hidden="true"
-        className="nc-signup-fill pointer-events-none absolute"
-        style={{
-          left: px(FRAME.divider + 0.9),
-          width: px(SIGNUP_RIGHT - FRAME.divider - 0.9),
-          top: py(FRAME.top + 1.3),
-          height: py(FRAME.bottom - FRAME.top - 2.6),
-        }}
-      />
-
-      <SignupFrame className="pointer-events-none absolute inset-0 h-full w-full" />
-
-      {/* honeypot: hidden from people, but naive spam bots fill it in → server ignores those */}
-      <input
-        type="text"
-        name="website"
-        tabIndex={-1}
-        autoComplete="off"
-        aria-hidden="true"
-        style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
-      />
-
-      {/* EMAIL field — fills the left section of the frame */}
-      <label htmlFor={inputId} className="sr-only">
-        Email address
-      </label>
-      <input
-        id={inputId}
-        type="email"
-        name="email"
-        autoComplete="email"
-        inputMode="email"
-        spellCheck={false}
-        required
-        value={email}
-        placeholder={message || placeholder}
-        disabled={status === "loading" || status === "success"}
-        onChange={(e) => {
-          setEmail(e.target.value);
-          if (status !== "idle" && status !== "loading") setStatus("idle");
-        }}
-        aria-invalid={status === "invalid"}
-        className="nc-signup-input absolute bg-transparent text-center outline-none"
-        style={{
-          ...textStyle,
-          // typed address: elegant serif WITH lowercase, shown exactly as written
-          // (Cinzel is capitals-only — it turned emails into ALL CAPS)
-          fontFamily: cormorant.style.fontFamily,
-          fontWeight: 500,
-          textTransform: "none",
-          letterSpacing: "0.03em",
-          // warm tint on the typed text when it's not a valid address
-          color: status === "invalid" ? "#c9a68c" : "#dcdad3",
-          transition: "color .3s",
-          left: px(FRAME.left + 14),
-          width: px(FRAME.divider - FRAME.left - 28),
-          top: py(FRAME.top + 2),
-          height: py(FRAME.bottom - FRAME.top - 4),
-          // same size as SIGN UP on every screen (iPhone tap-zoom is turned off in the effect above)
-          fontSize: labelSize,
-          caretColor: "#e9e7e0",
-          border: 0,
-          padding: 0,
-          "--nc-ph": status === "invalid" || status === "error" ? "#c9a68c" : "#c3c1ba",
-        }}
-      />
-
-      {/* SIGN UP button — fills the right section */}
-      <button
-        type="submit"
-        disabled={status === "loading" || status === "success"}
-        className="nc-signup-btn absolute cursor-pointer bg-transparent"
-        style={{
-          ...textStyle,
-          // hit area = the whole gray section, so hovering anywhere in it works
-          left: px(FRAME.divider + 0.9),
-          width: px(SIGNUP_RIGHT - FRAME.divider - 0.9),
-          top: py(FRAME.top + 1.3),
-          height: py(FRAME.bottom - FRAME.top - 2.6),
-          fontSize: labelSize,
-          border: 0,
-          padding: 0,
-        }}
+      <form
+        ref={formRef}
+        onSubmit={onSubmit}
+        noValidate
+        className={`absolute inset-0${done ? " nc-signup-done" : ""}`}
+        inert={done}
+        aria-hidden={done || undefined}
+        aria-describedby={statusId}
       >
-        {status === "loading" ? "…" : button}
-      </button>
+        {/* Gray hover fill for the SIGN UP section — sits UNDER the frame so the
+            bars, divider and corner ornaments stay drawn on top of it */}
+        <div
+          aria-hidden="true"
+          className="nc-signup-fill pointer-events-none absolute"
+          style={{
+            left: px(FRAME.divider + 0.9),
+            width: px(SIGNUP_RIGHT - FRAME.divider - 0.9),
+            top: py(FRAME.top + 1.3),
+            height: py(FRAME.bottom - FRAME.top - 2.6),
+          }}
+        />
 
+        <SignupFrame className="pointer-events-none absolute inset-0 h-full w-full" />
+
+        {/* honeypot: hidden from people, but naive spam bots fill it in.
+            Meaningless name + ignore flags so phone/browser autofill and password
+            managers leave it alone (a field called "website" got autofilled). */}
+        <input
+          type="text"
+          name="nc_hp"
+          tabIndex={-1}
+          autoComplete="off"
+          data-1p-ignore=""
+          data-lpignore="true"
+          data-bwignore=""
+          data-form-type="other"
+          aria-hidden="true"
+          style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+        />
+
+        {/* EMAIL field — fills the left section of the frame */}
+        <label htmlFor={inputId} className="sr-only">
+          Email address
+        </label>
+        <input
+          id={inputId}
+          type="email"
+          name="email"
+          autoComplete="email"
+          inputMode="email"
+          spellCheck={false}
+          required
+          value={email}
+          placeholder={status === "invalid" ? invalidText : placeholder}
+          readOnly={status === "loading"}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (status === "invalid" || status === "error") setStatus("idle");
+          }}
+          aria-invalid={status === "invalid"}
+          className="nc-signup-input absolute bg-transparent text-center outline-none"
+          style={{
+            ...textStyle,
+            // typed address: elegant serif WITH lowercase, shown exactly as written
+            // (Cinzel is capitals-only — it turned emails into ALL CAPS)
+            fontFamily: cormorant.style.fontFamily,
+            fontWeight: 500,
+            textTransform: "none",
+            letterSpacing: "0.03em",
+            // warm tint on the typed text when it's not a valid address
+            color: status === "invalid" ? WARN : "#dcdad3",
+            transition: "color .3s",
+            left: px(FRAME.left + 14),
+            width: px(FRAME.divider - FRAME.left - 28),
+            top: py(FRAME.top + 2),
+            height: py(FRAME.bottom - FRAME.top - 4),
+            // same size as SIGN UP on every screen (iPhone tap-zoom is turned off in the effect above)
+            fontSize: labelSize,
+            caretColor: "#e9e7e0",
+            border: 0,
+            padding: 0,
+            "--nc-ph": status === "invalid" ? WARN : "#c3c1ba",
+          }}
+        />
+
+        {/* SIGN UP button — fills the right section */}
+        <button
+          type="submit"
+          disabled={status === "loading" || done}
+          aria-busy={status === "loading"}
+          className="nc-signup-btn absolute cursor-pointer bg-transparent"
+          style={{
+            ...textStyle,
+            // hit area = the whole gray section, so hovering anywhere in it works
+            left: px(FRAME.divider + 0.9),
+            width: px(SIGNUP_RIGHT - FRAME.divider - 0.9),
+            top: py(FRAME.top + 1.3),
+            height: py(FRAME.bottom - FRAME.top - 2.6),
+            fontSize: labelSize,
+            border: 0,
+            padding: 0,
+          }}
+        >
+          {status === "loading" ? "…" : button}
+        </button>
+      </form>
+
+      {/* always mounted, so screen readers announce every change */}
       <p id={statusId} aria-live="polite" className="sr-only">
-        {message}
+        {srMessage}
       </p>
 
       <style>{`
@@ -221,7 +298,7 @@ export default function SignupForm({
           font-size: ${labelSize};
         }
         .nc-signup-input:focus::placeholder { opacity: 0.25; }
-        .nc-signup-input:disabled { opacity: 1; -webkit-text-fill-color: #c3c1ba; }
+        .nc-signup-input:read-only { -webkit-text-fill-color: #c3c1ba; }
         /* browser autofill: no light box, text stays silver.
            background-clip:text confines Chrome's autofill fill to the glyphs,
            where the text colour paints over it → the box becomes invisible */
@@ -250,7 +327,17 @@ export default function SignupForm({
           outline: none;
         }
         .nc-signup-btn:disabled { cursor: default; }
+
+        /* signed up: the form fades away (SEE YOU SOON shows above it) */
+        .nc-signup-done { animation: nc-signup-out .6s ease both; pointer-events: none; }
+        @keyframes nc-signup-out {
+          from { opacity: 1; filter: blur(0); }
+          to { opacity: 0; filter: blur(4px); visibility: hidden; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          @keyframes nc-signup-out { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
+        }
       `}</style>
-    </form>
+    </div>
   );
 }

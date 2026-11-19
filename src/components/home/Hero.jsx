@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { marbleConfig } from "./marble/config";
 import FilmGrain from "./grain/FilmGrain";
@@ -21,6 +22,12 @@ const MarbleBackground = dynamic(() => import("./marble/MarbleBackground"), { ss
 const appearDelay = Math.max(0, logo.delay + logo.duration - appear.overlap);
 
 const Hero = () => {
+  // last sign-up result: null (not sent yet) | { kind: "success" | "error", n }
+  // n counts the attempts so a repeated failure fades "TRY AGAIN" in again
+  const [outcome, setOutcome] = useState(null);
+  const headline =
+    outcome?.kind === "success" ? signup.successText : outcome?.kind === "error" ? signup.errorText : comingSoon.text;
+
   return (
     <section
       className="relative w-screen h-screen overflow-hidden"
@@ -81,8 +88,14 @@ const Hero = () => {
             animation: `nc-rise-in ${appear.duration}s cubic-bezier(0.22, 1, 0.36, 1) ${appearDelay}s both`,
           }}
         >
-          <ComingSoon {...comingSoon} />
-          <SignupForm {...signup} />
+          {/* COMING SOON → "SEE YOU SOON" once signed up, "TRY AGAIN" if it failed */}
+          <ComingSoon
+            {...comingSoon}
+            text={headline}
+            tone={outcome?.kind === "error" ? "warm" : "silver"}
+            swapKey={outcome?.n ?? 0}
+          />
+          <SignupForm {...signup} onOutcome={(kind) => setOutcome((o) => ({ kind, n: (o?.n ?? 0) + 1 }))} />
         </div>
       </div>
     </section>

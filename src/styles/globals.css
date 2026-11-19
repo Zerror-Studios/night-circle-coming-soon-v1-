@@ -18,6 +18,16 @@
   @keyframes nc-soft-in { from { opacity: 0; } to { opacity: 1; } }
 }
 
+/* COMING SOON → SEE YOU SOON / TRY AGAIN: new words fade in out of a slight blur */
+@keyframes nc-swap {
+  from { opacity: 0; filter: blur(5px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.nc-swap-in { animation: nc-swap 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  @keyframes nc-swap { from { opacity: 0; } to { opacity: 1; } }
+}
+
 * {
   scroll-behavior: smooth;
   user-select: none;
